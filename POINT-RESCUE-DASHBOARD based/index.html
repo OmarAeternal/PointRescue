@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Point Rescue Tracking Command Center — Real-time GPS Search & Rescue Monitoring System">
+
+    <title>POINT RESCUE — Tracking Command Center</title>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="assets/logo.png">
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&family=Oswald:wght@700&display=swap" rel="stylesheet">
+
+    <!-- Material Icons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <!-- Dashboard CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <!-- ========== BRANDING STRIP — Actual Signal Lost Lives Found Image ========== -->
+    <div class="branding-strip" aria-label="Signal Lost Lives Found — Point Rescue"></div>
+
+    <!-- ========== DASHBOARD WRAPPER ========== -->
+    <div class="dashboard-wrapper">
+
+        <!-- ========== HEADER ========== -->
+        <header class="header" id="header">
+            <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar">
+                <span class="material-icons-round">menu</span>
+            </button>
+
+            <!-- Actual Point Rescue Logo -->
+            <div class="header-logo">
+                <img src="assets/logo.png" alt="Point Rescue Logo" class="header-logo-img" draggable="false">
+            </div>
+
+            <div class="header-title">
+                <h1 class="logo-text">
+                    <span class="title-point">PO<span class="logo-i">I<span class="material-icons-round logo-signal">sensors</span></span>NT</span><span class="title-rescue">RESCUE</span>
+                </h1>
+                <span class="header-subtitle">Tracking Command Center</span>
+            </div>
+
+            <div class="header-right">
+                <div class="connection-status" id="connectionStatus">
+                    <span class="pulse-dot"></span>
+                    <span class="status-text">Connecting...</span>
+                </div>
+                <div class="header-device-count">
+                    <span class="material-icons-round">devices</span>
+                    <span id="headerDeviceCount">0 Devices</span>
+                </div>
+                <div class="header-clock" id="clock"></div>
+            </div>
+        </header>
+
+        <!-- ========== MAIN BODY ========== -->
+        <div class="dashboard-body">
+
+            <!-- ========== SIDEBAR ========== -->
+            <aside class="sidebar" id="sidebar">
+
+                <!-- Sidebar Brand Area with Logo + Radar -->
+                <div class="sidebar-brand">
+                    <div class="sidebar-radar-bg" aria-hidden="true">
+                        <svg viewBox="0 0 160 160" class="radar-svg">
+                            <circle cx="80" cy="80" r="70" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="0.8"/>
+                            <circle cx="80" cy="80" r="50" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="0.6"/>
+                            <circle cx="80" cy="80" r="30" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="0.6"/>
+                            <circle cx="80" cy="80" r="10" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="0.5"/>
+                            <line x1="80" y1="8" x2="80" y2="152" stroke="rgba(255,255,255,0.025)" stroke-width="0.5"/>
+                            <line x1="8" y1="80" x2="152" y2="80" stroke="rgba(255,255,255,0.025)" stroke-width="0.5"/>
+                            <line x1="25" y1="25" x2="135" y2="135" stroke="rgba(255,255,255,0.015)" stroke-width="0.4"/>
+                            <line x1="135" y1="25" x2="25" y2="135" stroke="rgba(255,255,255,0.015)" stroke-width="0.4"/>
+                            <line class="radar-sweep" x1="80" y1="80" x2="80" y2="10" stroke="rgba(249,115,22,0.45)" stroke-width="1.5" stroke-linecap="round"/>
+                        </svg>
+                    </div>
+                    <img src="assets/logo.png" alt="Point Rescue" class="sidebar-logo-img" draggable="false">
+                    <div class="sidebar-brand-text">
+                        <span class="brand-title">POINTRESCUE</span>
+                        <span class="brand-sub">SAR Tracking System</span>
+                    </div>
+                </div>
+
+                <!-- Stats Summary -->
+                <div class="sidebar-stats">
+                    <div class="stat-card">
+                        <div class="stat-icon total">
+                            <span class="material-icons-round">devices</span>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="totalDevices">0</span>
+                            <span class="stat-label">Total</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon online">
+                            <span class="material-icons-round">sensors</span>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="onlineDevices">0</span>
+                            <span class="stat-label">Online</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon offline">
+                            <span class="material-icons-round">sensors_off</span>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="offlineDevices">0</span>
+                            <span class="stat-label">Offline</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Device List -->
+                <div class="sidebar-section">
+                    <div class="section-header">
+                        <span class="material-icons-round">radar</span>
+                        <span>Active Devices</span>
+                    </div>
+                    <div class="device-list" id="deviceList">
+                        <div class="device-list-empty">
+                            <span class="material-icons-round">search_off</span>
+                            <span>No devices detected</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sidebar Footer -->
+                <div class="sidebar-footer">
+                    <img src="assets/logo.png" alt="" class="footer-logo" draggable="false">
+                    <span>Point Rescue v2.0</span>
+                </div>
+
+            </aside>
+
+            <!-- ========== MAP AREA ========== -->
+            <div class="main-content" id="mainContent">
+                <div class="map-container">
+                    <div id="map"></div>
+
+                    <!-- Map Overlay Info -->
+                    <div class="map-overlay-info" id="mapOverlayInfo">
+                        <img src="assets/logo.png" alt="" class="overlay-logo" draggable="false">
+                        <span id="mapOverlayText">Initializing map...</span>
+                    </div>
+
+                    <!-- Compass Watermark (poster-inspired) -->
+                    <div class="compass-watermark" aria-hidden="true">
+                        <svg viewBox="0 0 220 220" class="compass-svg">
+                            <!-- Outer rings -->
+                            <circle cx="110" cy="110" r="100" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.07"/>
+                            <circle cx="110" cy="110" r="80" fill="none" stroke="currentColor" stroke-width="0.6" opacity="0.05"/>
+                            <circle cx="110" cy="110" r="60" fill="none" stroke="currentColor" stroke-width="0.5" opacity="0.04"/>
+                            <circle cx="110" cy="110" r="40" fill="none" stroke="currentColor" stroke-width="0.4" opacity="0.035"/>
+                            <circle cx="110" cy="110" r="20" fill="none" stroke="currentColor" stroke-width="0.3" opacity="0.03"/>
+                            <!-- Crosshairs -->
+                            <line x1="110" y1="5" x2="110" y2="215" stroke="currentColor" stroke-width="0.5" opacity="0.05"/>
+                            <line x1="5" y1="110" x2="215" y2="110" stroke="currentColor" stroke-width="0.5" opacity="0.05"/>
+                            <!-- Diagonals -->
+                            <line x1="32" y1="32" x2="188" y2="188" stroke="currentColor" stroke-width="0.3" opacity="0.035"/>
+                            <line x1="188" y1="32" x2="32" y2="188" stroke="currentColor" stroke-width="0.3" opacity="0.035"/>
+                            <!-- Cardinal labels -->
+                            <text x="110" y="20" text-anchor="middle" fill="currentColor" font-size="13" font-weight="800" font-family="Inter" opacity="0.08">N</text>
+                            <text x="110" y="210" text-anchor="middle" fill="currentColor" font-size="13" font-weight="800" font-family="Inter" opacity="0.08">S</text>
+                            <text x="206" y="114" text-anchor="end" fill="currentColor" font-size="13" font-weight="800" font-family="Inter" opacity="0.08">E</text>
+                            <text x="18" y="114" text-anchor="start" fill="currentColor" font-size="13" font-weight="800" font-family="Inter" opacity="0.08">W</text>
+                            <!-- North arrow -->
+                            <polygon points="110,26 106,38 114,38" fill="currentColor" opacity="0.07"/>
+                            <!-- Small tick marks on outer ring -->
+                            <line x1="110" y1="10" x2="110" y2="16" stroke="currentColor" stroke-width="0.8" opacity="0.06"/>
+                            <line x1="110" y1="204" x2="110" y2="210" stroke="currentColor" stroke-width="0.8" opacity="0.06"/>
+                            <line x1="10" y1="110" x2="16" y2="110" stroke="currentColor" stroke-width="0.8" opacity="0.06"/>
+                            <line x1="204" y1="110" x2="210" y2="110" stroke="currentColor" stroke-width="0.8" opacity="0.06"/>
+                        </svg>
+                    </div>
+
+                    <!-- Poster-inspired dot grid decoration -->
+                    <div class="map-dot-grid top-left" aria-hidden="true"></div>
+                    <div class="map-dot-grid bottom-right" aria-hidden="true"></div>
+                </div>
+            </div>
+
+            <!-- ========== RIGHT PANEL ========== -->
+            <aside class="right-panel" id="rightPanel">
+
+                <!-- Status Summary Cards -->
+                <div class="status-cards">
+                    <div class="status-card-header">
+                        <span class="material-icons-round">assessment</span>
+                        <span>System Status</span>
+                    </div>
+                    <div class="status-cards-grid">
+                        <div class="scard scard-total">
+                            <div class="scard-icon">
+                                <span class="material-icons-round">devices</span>
+                            </div>
+                            <span class="scard-value" id="scardTotal">0</span>
+                            <span class="scard-label">Total</span>
+                        </div>
+                        <div class="scard scard-online">
+                            <div class="scard-icon">
+                                <span class="material-icons-round">cell_tower</span>
+                            </div>
+                            <span class="scard-value" id="scardOnline">0</span>
+                            <span class="scard-label">Online</span>
+                        </div>
+                        <div class="scard scard-offline">
+                            <div class="scard-icon">
+                                <span class="material-icons-round">signal_cellular_off</span>
+                            </div>
+                            <span class="scard-value" id="scardOffline">0</span>
+                            <span class="scard-label">Offline</span>
+                        </div>
+                        <div class="scard scard-update">
+                            <div class="scard-icon">
+                                <span class="material-icons-round">update</span>
+                            </div>
+                            <span class="scard-value" id="scardLastUpdate">—</span>
+                            <span class="scard-label">Last Update</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Device Detail Panel -->
+                <div class="detail-panel" id="detailPanel">
+                    <div class="detail-panel-placeholder" id="detailPlaceholder">
+                        <div class="placeholder-signal" aria-hidden="true">
+                            <div class="signal-ring ring-1"></div>
+                            <div class="signal-ring ring-2"></div>
+                            <div class="signal-ring ring-3"></div>
+                            <img src="assets/logo.png" alt="" class="placeholder-logo" draggable="false">
+                        </div>
+                        <p>Select a device to view<br>tracking details</p>
+                    </div>
+                    <div class="detail-panel-content" id="detailContent" style="display:none;">
+                        <div class="detail-header">
+                            <div class="detail-device-icon" id="detailDeviceIcon">
+                                <span class="material-icons-round">gps_fixed</span>
+                            </div>
+                            <div class="detail-device-title">
+                                <h2 id="detailDeviceId">—</h2>
+                                <span class="detail-status" id="detailStatus">
+                                    <span class="status-dot"></span>
+                                    <span class="status-label">—</span>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="detail-grid">
+                            <div class="detail-item">
+                                <div class="detail-item-icon lat">
+                                    <span class="material-icons-round">south</span>
+                                </div>
+                                <div class="detail-item-info">
+                                    <span class="detail-item-label">Latitude</span>
+                                    <span class="detail-item-value" id="detailLat">—</span>
+                                </div>
+                            </div>
+                            <div class="detail-item">
+                                <div class="detail-item-icon lon">
+                                    <span class="material-icons-round">east</span>
+                                </div>
+                                <div class="detail-item-info">
+                                    <span class="detail-item-label">Longitude</span>
+                                    <span class="detail-item-value" id="detailLon">—</span>
+                                </div>
+                            </div>
+                            <div class="detail-item">
+                                <div class="detail-item-icon alt">
+                                    <span class="material-icons-round">terrain</span>
+                                </div>
+                                <div class="detail-item-info">
+                                    <span class="detail-item-label">Altitude</span>
+                                    <span class="detail-item-value" id="detailAlt">—</span>
+                                </div>
+                            </div>
+                            <div class="detail-item">
+                                <div class="detail-item-icon spd">
+                                    <span class="material-icons-round">speed</span>
+                                </div>
+                                <div class="detail-item-info">
+                                    <span class="detail-item-label">Speed</span>
+                                    <span class="detail-item-value" id="detailSpeed">—</span>
+                                </div>
+                            </div>
+                            <div class="detail-item">
+                                <div class="detail-item-icon sat">
+                                    <span class="material-icons-round">satellite_alt</span>
+                                </div>
+                                <div class="detail-item-info">
+                                    <span class="detail-item-label">Satellites</span>
+                                    <span class="detail-item-value" id="detailSat">—</span>
+                                </div>
+                            </div>
+                            <div class="detail-item">
+                                <div class="detail-item-icon time">
+                                    <span class="material-icons-round">schedule</span>
+                                </div>
+                                <div class="detail-item-info">
+                                    <span class="detail-item-label">Last Update</span>
+                                    <span class="detail-item-value" id="detailLastUpdate">—</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </aside>
+
+        </div>
+
+        <!-- Footer Branding Strip -->
+        <div class="footer-stripe" aria-hidden="true"></div>
+
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- Dashboard JS -->
+    <script src="script.js"></script>
+
+</body>
+
+</html>

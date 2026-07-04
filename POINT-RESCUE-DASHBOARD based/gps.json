@@ -1,0 +1,11 @@
+[
+  {
+    "device_id": "002",
+    "latitude": -7.953831,
+    "longitude": 112.6148812,
+    "altitude": 513.8,
+    "speed": 0.036011111,
+    "satellites": 11,
+    "gps_valid": true
+  }
+]
