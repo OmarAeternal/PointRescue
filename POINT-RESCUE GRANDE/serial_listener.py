@@ -29,17 +29,25 @@ from pathlib import Path
 GPS_JSON_PATH = Path(__file__).parent / "gps.json"
 OFFLINE_TIMEOUT = 15          # detik — hapus device dari JSON jika tidak ada update
 BAUD_RATE_DEFAULT = 115200
+NET_ID = "PR01"               # HARUS sama dengan NET_ID di firmware ESP32 — paket beda net diabaikan
 
-# ── Field mapping: key dari ESP32 firmware → key yang diharapkan dashboard ──
+# ── Packet type dari firmware (lihat enum PacketType di ESP32) ──
+PKT_HEARTBEAT = 0
+PKT_TRACKING  = 1
+PKT_SOS       = 2
+
+# ── Role dari Node ID: id / 1000 (lihat enum Role di ESP32) ──
+ROLE_NAMES = {0: "GATEWAY", 1: "SAR", 2: "KORBAN"}
+
+# ── Field mapping: key pendek firmware → key panjang yang dipakai dashboard ──
 # Dashboard membaca: device_id, latitude, longitude, altitude, speed, satellites
 FIELD_MAP = {
-    "device_id": "device_id",
-    "lat":        "latitude",
-    "lng":        "longitude",
-    "alt":        "altitude",
-    "spd":        "speed",
-    "sats":       "satellites",
-    "valid":      "gps_valid",
+    "lat":   "latitude",
+    "lng":   "longitude",
+    "alt":   "altitude",
+    "spd":   "speed",
+    "sats":  "satellites",
+    "valid": "gps_valid",
 }
 
 # ── State: simpan data terakhir tiap device ───────────────────
@@ -84,10 +92,9 @@ def pick_port(preferred: str | None) -> str:
 def parse_payload(raw: str) -> dict | None:
     """
     Cari dan parse JSON dari satu baris serial.
-    Firmware mengeluarkan banyak log; kita cari baris yang mengandung
-    field GPS seperti 'lat' / 'latitude' / 'device_id'.
+    Firmware mengeluarkan banyak log ([RX], [TX], [RELAY], dst);
+    kita cari substring JSON {...} di baris manapun.
     """
-    # Cari substring JSON { ... } pertama di baris
     match = re.search(r'\{.*\}', raw)
     if not match:
         return None
@@ -97,35 +104,44 @@ def parse_payload(raw: str) -> dict | None:
     except json.JSONDecodeError:
         return None
 
-    # Harus punya setidaknya device_id dan koordinat
-    has_id  = "device_id" in obj or "src" in obj
-    has_lat = "lat" in obj or "latitude" in obj
-    has_lng = "lng" in obj or "longitude" in obj
+    # Paket firmware baru wajib punya: net, id, seq, type, hop
+    required = ("net", "id", "seq", "type", "hop")
+    if not all(k in obj for k in required):
+        return None
 
-    if not (has_id and has_lat and has_lng):
+    # Abaikan paket dari jaringan lain
+    if obj.get("net") != NET_ID:
         return None
 
     return obj
 
 
-def normalize(raw: dict) -> dict:
+def normalize(raw: dict) -> dict | None:
     """
-    Konversi key pendek dari firmware (lat/lng/alt/spd/sats)
-    ke key panjang yang dipakai dashboard (latitude/longitude/dst).
+    Konversi payload firmware baru ke format yang dipakai dashboard.
+
+    Firmware: {"net","id","seq","type","hop","lat","lng","alt","spd","sats","valid"}
+    Dashboard butuh: device_id, latitude, longitude, altitude, speed, satellites
+
+    Heartbeat (type=0) tidak membawa GPS → tidak dijadikan update posisi,
+    supaya marker di peta tidak ditarik ke koordinat dummy/kosong.
     """
-    out = {}
+    pkt_type = raw.get("type")
+
+    if pkt_type == PKT_HEARTBEAT:
+        return None   # Tidak ada data lokasi untuk ditampilkan di peta
+
+    node_id = raw["id"]
+    role = ROLE_NAMES.get(node_id // 1000, "UNKNOWN")
+
+    out = {"device_id": f"{role}-{node_id}"}
     for src_key, dst_key in FIELD_MAP.items():
         if src_key in raw:
             out[dst_key] = raw[src_key]
 
-    # Fallback: beberapa key mungkin sudah panjang
-    for long_key in ("latitude", "longitude", "altitude", "speed", "satellites", "device_id"):
-        if long_key in raw and long_key not in out:
-            out[long_key] = raw[long_key]
-
-    # Pastikan device_id ada (bisa dari 'device_id' atau 'src')
-    if "device_id" not in out:
-        out["device_id"] = raw.get("src", "unknown")
+    out["_role"] = role
+    out["_seq"] = raw.get("seq")
+    out["_is_sos"] = (pkt_type == PKT_SOS)
 
     return out
 
@@ -180,10 +196,23 @@ def listen(port: str, baud: int) -> None:
 
             payload = parse_payload(line)
             if payload is None:
-                continue   # Bukan baris GPS, skip
+                continue   # Bukan baris JSON valid / beda net, skip
 
             normalized = normalize(payload)
-            dev_id = normalized.get("device_id", "unknown")
+            if normalized is None:
+                continue   # Heartbeat — tidak ada lokasi, skip
+
+            dev_id = normalized["device_id"]
+
+            # Buang paket yang urutannya lebih lama dari yang sudah tersimpan
+            # (bisa terjadi karena flooding — paket sama sampai lewat jalur berbeda)
+            prev = node_table.get(dev_id)
+            if prev and normalized.get("_seq") is not None and prev.get("_seq") is not None:
+                if normalized["_seq"] <= prev["_seq"]:
+                    continue
+
+            if normalized.get("_is_sos"):
+                print(f"  ⚠️  SOS diterima dari {dev_id} !!")
 
             # Update node table
             node_table[dev_id] = {**normalized, "_last_seen": time.time()}

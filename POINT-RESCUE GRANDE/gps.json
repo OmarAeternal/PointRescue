@@ -1,11 +1,11 @@
 [
   {
-    "device_id": "002",
-    "latitude": -7.953831,
-    "longitude": 112.6148812,
-    "altitude": 513.8,
-    "speed": 0.036011111,
-    "satellites": 11,
+    "device_id": "SAR-1001",
+    "latitude": -7.940612833,
+    "longitude": 112.6185113,
+    "altitude": 555.4,
+    "speed": 0.072022222,
+    "satellites": 6,
     "gps_valid": true
   }
 ]

@@ -24,9 +24,83 @@
 
     <!-- Dashboard CSS -->
     <link rel="stylesheet" href="style.css">
+
+    <!-- SOS Feature CSS (scoped tambahan — tidak mengubah style.css) -->
+    <style>
+        /* --- Banner peringatan SOS global --- */
+        #sosBanner {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 10px 16px;
+            background: #ef4444;
+            color: #fff;
+            font-family: 'Inter', sans-serif;
+            font-weight: 700;
+            font-size: 14px;
+            letter-spacing: 0.03em;
+            animation: sosBannerBlink 1.2s ease-in-out infinite;
+            position: relative;
+            z-index: 20;
+        }
+        #sosBanner .material-icons-round { font-size: 20px; }
+        @keyframes sosBannerBlink {
+            0%, 100% { background: #ef4444; }
+            50% { background: #b91c1c; }
+        }
+
+        /* --- Marker peta: ring pulsing saat SOS --- */
+        .custom-marker-sos .sos-ring-1,
+        .custom-marker-sos .sos-ring-2 {
+            transform-origin: 16px 16px;
+            animation: sosRingPulse 1.6s ease-out infinite;
+        }
+        .custom-marker-sos .sos-ring-2 { animation-delay: 0.8s; }
+        @keyframes sosRingPulse {
+            0%   { r: 8;  opacity: 0.9; }
+            100% { r: 20; opacity: 0; }
+        }
+
+        /* --- Badge SOS di popup marker --- */
+        .popup-row-sos { justify-content: center; padding: 4px 0; }
+        .popup-sos-badge {
+            background: #ef4444; color: #fff; font-weight: 700;
+            font-size: 11px; padding: 3px 10px; border-radius: 4px;
+            letter-spacing: 0.03em;
+        }
+        .popup-row-warning { justify-content: center; padding: 2px 0; }
+        .popup-warning-badge {
+            background: #f59e0b; color: #1a1a1a; font-weight: 600;
+            font-size: 10.5px; padding: 2px 8px; border-radius: 4px;
+        }
+
+        /* --- Badge SOS di sidebar device list --- */
+        .device-item-sos-badge {
+            background: #ef4444; color: #fff; font-size: 9.5px; font-weight: 800;
+            padding: 1px 6px; border-radius: 3px; margin-left: 6px;
+            vertical-align: middle; letter-spacing: 0.04em;
+        }
+        .device-item-sos { animation: sosItemBlink 1.2s ease-in-out infinite; }
+        @keyframes sosItemBlink {
+            0%, 100% { background: rgba(239,68,68,0.06); }
+            50% { background: rgba(239,68,68,0.16); }
+        }
+
+        /* --- Status badge SOS di detail panel kanan --- */
+        .detail-status.device-item-sos {
+            background: #ef4444; color: #fff; animation: sosItemBlink 1.2s ease-in-out infinite;
+        }
+    </style>
 </head>
 
 <body>
+
+    <!-- ========== SOS ALERT BANNER (hidden by default, shown via script.js) ========== -->
+    <div id="sosBanner">
+        <span class="material-icons-round">emergency</span>
+        <span id="sosBannerText">SOS ACTIVE</span>
+    </div>
 
     <!-- ========== BRANDING STRIP — Actual Signal Lost Lives Found Image ========== -->
     <div class="branding-strip" aria-label="Signal Lost Lives Found — Point Rescue"></div>
