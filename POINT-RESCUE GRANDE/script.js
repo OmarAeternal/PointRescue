@@ -81,6 +81,10 @@
         clock: document.getElementById('clock'),
         sidebarToggle: document.getElementById('sidebarToggle'),
         sidebar: document.getElementById('sidebar'),
+
+        // SOS banner (baru)
+        sosBanner: document.getElementById('sosBanner'),
+        sosBannerText: document.getElementById('sosBannerText'),
     };
 
 
@@ -110,23 +114,31 @@
     /* ============================================
        CUSTOM MARKER ICON
        ============================================ */
-    function createMarkerIcon(color) {
+    function createMarkerIcon(color, isSOS) {
+        const pinColor = isSOS ? '#ef4444' : color;
+
+        // Ring pulsing tambahan di belakang pin saat SOS aktif
+        const sosRing = isSOS ? `
+                <circle cx="16" cy="16" r="14" fill="none" stroke="#ef4444" stroke-width="2" class="sos-ring-1"/>
+                <circle cx="16" cy="16" r="14" fill="none" stroke="#ef4444" stroke-width="2" class="sos-ring-2"/>` : '';
+
         const svg = `
-            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="42" viewBox="0 0 32 42">
+            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="42" viewBox="0 0 32 42" overflow="visible">
                 <defs>
                     <filter id="shadow" x="-20%" y="-10%" width="140%" height="130%">
                         <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="rgba(0,0,0,0.3)"/>
                     </filter>
                 </defs>
+                ${sosRing}
                 <path d="M16 0 C7.16 0 0 7.16 0 16 C0 28 16 42 16 42 S32 28 32 16 C32 7.16 24.84 0 16 0Z"
-                      fill="${color}" filter="url(#shadow)"/>
+                      fill="${pinColor}" filter="url(#shadow)"/>
                 <circle cx="16" cy="16" r="7" fill="white" opacity="0.9"/>
-                <circle cx="16" cy="16" r="4" fill="${color}"/>
+                <circle cx="16" cy="16" r="4" fill="${pinColor}"/>
             </svg>`;
 
         return L.divIcon({
             html: svg,
-            className: 'custom-marker',
+            className: 'custom-marker' + (isSOS ? ' custom-marker-sos' : ''),
             iconSize: [32, 42],
             iconAnchor: [16, 42],
             popupAnchor: [0, -42],
@@ -145,6 +157,12 @@
     function isDeviceOnline(device) {
         if (!device.lastUpdate) return false;
         return (Date.now() - device.lastUpdate) < CONFIG.OFFLINE_TIMEOUT;
+    }
+
+    function isDeviceSOS(device) {
+        // Anggap SOS masih "aktif" selama device online, meski gps.json
+        // hanya membawa is_sos di packet terakhir yang diterima.
+        return !!(device.data && device.data.is_sos) && isDeviceOnline(device);
     }
 
     function formatTime(timestamp) {
@@ -172,7 +190,7 @@
                 /* --- New Device --- */
                 const ci = colorCounter++;
                 const color = getDeviceColor(ci);
-                const icon = createMarkerIcon(color);
+                const icon = createMarkerIcon(color, !!entry.is_sos);
 
                 const marker = L.marker(
                     [entry.latitude, entry.longitude],
@@ -206,12 +224,16 @@
             }
         });
 
-        // Update marker popups
+        // Update marker icons (warna/pulsing SOS bisa berubah tiap update) + popups
         Object.keys(devices).forEach(function (id) {
             const device = devices[id];
             const online = isDeviceOnline(device);
+            const sos = isDeviceSOS(device);
             const d = device.data;
-            const popupHTML = buildPopupHTML(id, d, device.color, online);
+
+            device.marker.setIcon(createMarkerIcon(device.color, sos));
+
+            const popupHTML = buildPopupHTML(id, d, device.color, online, sos);
             device.marker.bindPopup(popupHTML, { closeButton: true, maxWidth: 260 });
         });
 
@@ -220,23 +242,32 @@
         updateStats();
         updateDetailPanel();
         updateMapOverlay();
+        updateSOSBanner();
     }
 
 
     /* ============================================
        POPUP HTML
        ============================================ */
-    function buildPopupHTML(id, data, color, online) {
+    function buildPopupHTML(id, data, color, online, sos) {
         const statusClass = online ? 'online' : 'offline';
         const statusText = online ? 'Online' : 'Offline';
+        const sosRow = sos
+            ? `<div class="popup-row popup-row-sos"><span class="popup-sos-badge">⚠ SOS ACTIVE</span></div>`
+            : '';
+        const validRow = (data.gps_valid === false)
+            ? `<div class="popup-row popup-row-warning"><span class="popup-warning-badge">No GPS Fix (dummy)</span></div>`
+            : '';
 
         return `
             <div class="popup-content">
                 <div class="popup-header">
-                    <span class="popup-color-dot" style="background:${color}; box-shadow: 0 0 6px ${color};"></span>
+                    <span class="popup-color-dot" style="background:${sos ? '#ef4444' : color}; box-shadow: 0 0 6px ${sos ? '#ef4444' : color};"></span>
                     <span class="popup-device-name">Device ${id}</span>
                     <span class="popup-status ${statusClass}">${statusText}</span>
                 </div>
+                ${sosRow}
+                ${validRow}
                 <div class="popup-row">
                     <span class="popup-row-label">Latitude</span>
                     <span class="popup-row-value">${Number(data.latitude).toFixed(6)}</span>
@@ -265,7 +296,13 @@
        SIDEBAR: DEVICE LIST
        ============================================ */
     function updateSidebar() {
-        const ids = Object.keys(devices).sort();
+        // SOS aktif diprioritaskan tampil paling atas, sisanya alfabetis
+        const ids = Object.keys(devices).sort(function (a, b) {
+            const sosA = isDeviceSOS(devices[a]) ? 0 : 1;
+            const sosB = isDeviceSOS(devices[b]) ? 0 : 1;
+            if (sosA !== sosB) return sosA - sosB;
+            return a.localeCompare(b);
+        });
 
         if (ids.length === 0) {
             DOM.deviceList.innerHTML = `
@@ -281,15 +318,19 @@
         ids.forEach(function (id) {
             const device = devices[id];
             const online = isDeviceOnline(device);
+            const sos = isDeviceSOS(device);
             const activeClass = (selectedDeviceId === id) ? ' active' : '';
+            const sosClass = sos ? ' device-item-sos' : '';
             const statusClass = online ? 'online' : 'offline';
             const d = device.data;
+            const dotColor = sos ? '#ef4444' : device.color;
+            const sosBadge = sos ? '<span class="device-item-sos-badge">SOS</span>' : '';
 
             html += `
-                <div class="device-item${activeClass}" data-device-id="${id}" onclick="window.__selectDevice('${id}')">
-                    <span class="device-item-color" style="color:${device.color}; background:${device.color};"></span>
+                <div class="device-item${activeClass}${sosClass}" data-device-id="${id}" onclick="window.__selectDevice('${id}')">
+                    <span class="device-item-color" style="color:${dotColor}; background:${dotColor};"></span>
                     <div class="device-item-info">
-                        <div class="device-item-name">Device ${id}</div>
+                        <div class="device-item-name">Device ${id} ${sosBadge}</div>
                         <div class="device-item-coords">${Number(d.latitude).toFixed(4)}, ${Number(d.longitude).toFixed(4)}</div>
                     </div>
                     <span class="device-item-status ${statusClass}"></span>
@@ -373,25 +414,54 @@
         const device = devices[selectedDeviceId];
         const d = device.data;
         const online = isDeviceOnline(device);
+        const sos = isDeviceSOS(device);
 
         // Device header
-        DOM.detailDeviceId.textContent = 'Device ' + selectedDeviceId;
-        DOM.detailDeviceIcon.style.background = device.color + '18';
-        DOM.detailDeviceIcon.style.color = device.color;
+        DOM.detailDeviceId.textContent = 'Device ' + selectedDeviceId + (sos ? '  ⚠ SOS' : '');
+        DOM.detailDeviceIcon.style.background = (sos ? '#ef4444' : device.color) + '18';
+        DOM.detailDeviceIcon.style.color = sos ? '#ef4444' : device.color;
 
-        // Status
-        const statusClass = online ? 'online' : 'offline';
-        const statusText = online ? 'Online' : 'Offline';
-        DOM.detailStatus.className = 'detail-status ' + statusClass;
-        DOM.detailStatus.querySelector('.status-label').textContent = statusText;
+        // Status (SOS menimpa tampilan online/offline biasa agar menonjol)
+        if (sos) {
+            DOM.detailStatus.className = 'detail-status device-item-sos';
+            DOM.detailStatus.querySelector('.status-label').textContent = 'SOS ACTIVE';
+        } else {
+            const statusClass = online ? 'online' : 'offline';
+            const statusText = online ? 'Online' : 'Offline';
+            DOM.detailStatus.className = 'detail-status ' + statusClass;
+            DOM.detailStatus.querySelector('.status-label').textContent = statusText;
+        }
 
         // Values
         DOM.detailLat.textContent = Number(d.latitude).toFixed(6) + '°';
         DOM.detailLon.textContent = Number(d.longitude).toFixed(6) + '°';
         DOM.detailAlt.textContent = d.altitude + ' m';
         DOM.detailSpeed.textContent = d.speed + ' km/h';
-        DOM.detailSat.textContent = d.satellites;
+        DOM.detailSat.textContent = d.satellites + (d.gps_valid === false ? ' (no fix)' : '');
         DOM.detailLastUpdate.textContent = formatTime(device.lastUpdate);
+    }
+
+
+    /* ============================================
+       SOS BANNER (global alert di atas dashboard)
+       ============================================ */
+    function updateSOSBanner() {
+        if (!DOM.sosBanner) return;   // Elemen belum ditambahkan di HTML
+
+        const sosIds = Object.keys(devices).filter(function (id) {
+            return isDeviceSOS(devices[id]);
+        });
+
+        if (sosIds.length === 0) {
+            DOM.sosBanner.style.display = 'none';
+            return;
+        }
+
+        DOM.sosBanner.style.display = 'flex';
+        DOM.sosBannerText.textContent =
+            sosIds.length === 1
+                ? `SOS ACTIVE — Device ${sosIds[0]}`
+                : `SOS ACTIVE — ${sosIds.length} devices: ${sosIds.join(', ')}`;
     }
 
 
@@ -448,6 +518,7 @@
             updateStats();
             updateSidebar();
             updateDetailPanel();
+            updateSOSBanner();
         }
     }
 
